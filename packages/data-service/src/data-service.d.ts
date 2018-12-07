@@ -1,5 +1,5 @@
 declare module "data-service" {
-  import { Observable } from "rxjs/observable";
+  import { Observable } from "rxjs";
   export { componentFromStream, createEventHandler } from "recompose";
 
   export function graphqlObservable(

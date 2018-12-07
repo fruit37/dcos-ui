@@ -1,9 +1,5 @@
-import { Observable } from "rxjs/Observable";
-import "rxjs/add/observable/interval";
-import "rxjs/add/observable/of";
-import "rxjs/add/operator/combineLatest";
-import "rxjs/add/operator/map";
-import "rxjs/add/operator/take";
+import { of } from "rxjs";
+import { combineLatest, map, take } from "rxjs/operators";
 
 import { marbles } from "rxjs-marbles/jest";
 
@@ -39,27 +35,32 @@ const mockResolvers = {
         return ctx.query;
       } else if (typeof name === "string") {
         // When the filter is a value
-        return ctx.query.map(els => els.filter(el => el.name === name));
+        return ctx.query.pipe(map(els => els.filter(el => el.name === name)));
       } else {
         // when the filter is an observable
-        return ctx.query
-          .combineLatest(name, (res, name) => [res, name])
-          .map(els => els[0].filter(el => el.name === els[1]));
+        return ctx.query.pipe(
+          combineLatest(name, (res, name) => [res, name]),
+          map(els => els[0].filter(el => el.name === els[1]))
+        );
       }
     }
   },
   Mutation: {
     createShuttle: (parent, args, ctx) => {
-      return ctx.mutation.map(() => ({
-        name: args.name
-      }));
+      return ctx.mutation.pipe(
+        map(() => ({
+          name: args.name
+        }))
+      );
     },
     createShuttleList: (parent, args, ctx) => {
-      return ctx.mutation.map(() => [
-        { name: "discovery" },
-        { name: "challenger" },
-        { name: args.name }
-      ]);
+      return ctx.mutation.pipe(
+        map(() => [
+          { name: "discovery" },
+          { name: "challenger" },
+          { name: args.name }
+        ])
+      );
     }
   }
 };
@@ -108,62 +109,60 @@ const fieldResolverSchema = makeExecutableSchema({
   resolvers: {
     Plain: {
       fieldResolver() {
-        return Observable.of("I am a field resolver");
+        return of("I am a field resolver");
       },
       giveMeTheParentFieldResolver(parent) {
-        return Observable.of(JSON.stringify(parent));
+        return of(JSON.stringify(parent));
       },
       giveMeTheArgsFieldResolver(_parent, args) {
-        return Observable.of(JSON.stringify(args));
+        return of(JSON.stringify(args));
       },
       giveMeTheContextFieldResolver(_parent, _args, context) {
-        return Observable.of(context.newValue);
+        return of(context.newValue);
       }
     },
     Item: {
       nodeFieldResolver() {
-        return Observable.of({ value: "I am a node field resolver" });
+        return of({ value: "I am a node field resolver" });
       },
       giveMeTheParentFieldResolver(parent) {
-        return Observable.of({ value: JSON.stringify(parent) });
+        return of({ value: JSON.stringify(parent) });
       },
       giveMeTheArgsFieldResolver(_parent, args) {
-        return Observable.of({ value: JSON.stringify(args) });
+        return of({ value: JSON.stringify(args) });
       },
       giveMeTheContextFieldResolver(_parent, _args, context) {
-        return Observable.of({ value: context.newValue });
+        return of({ value: context.newValue });
       }
     },
     Nested: {
       firstFieldResolver(_parent, _args, ctx) {
         ctx.contextValue = " resolvers are great";
 
-        return Observable.of({ noFieldResolverValue: "nested" });
+        return of({ noFieldResolverValue: "nested" });
       }
     },
     Nesting: {
       secondFieldResolver({ noFieldResolverValue }, _, { contextValue }) {
-        return Observable.of(
-          noFieldResolverValue.toLocaleUpperCase() + contextValue
-        );
+        return of(noFieldResolverValue.toLocaleUpperCase() + contextValue);
       }
     },
     Query: {
       plain(_parent, _args, ctx) {
         ctx.newValue = "ContextValue";
 
-        return Observable.of({
+        return of({
           noFieldResolver: "Yes"
         });
       },
       item(_parent, _args, ctx) {
         ctx.newValue = "NodeContextValue";
 
-        return Observable.of({ thisIsANodeFieldResolver: "Yes" });
+        return of({ thisIsANodeFieldResolver: "Yes" });
       },
 
       nested() {
-        return Observable.of({});
+        return of({});
       }
     }
   }
@@ -174,7 +173,6 @@ const itMarbles = (title, test) => {
   return it(
     title,
     marbles(m => {
-      m.bind();
       test(m);
     })
   );
@@ -192,14 +190,14 @@ describe("graphqlObservable", function() {
       `;
 
       const expectedData = [{ name: "discovery" }];
-      const dataSource = Observable.of(expectedData);
+      const dataSource = of(expectedData);
       const expected = m.cold("(a|)", {
         a: { data: { launched: expectedData } }
       });
 
       const result = graphqlObservable(query, schema, { query: dataSource });
 
-      m.expect(result.take(1)).toBeObservable(expected);
+      m.expect(result.pipe(take(1))).toBeObservable(expected);
     });
 
     itMarbles("filters by variable argument", function(m) {
@@ -213,18 +211,18 @@ describe("graphqlObservable", function() {
       `;
 
       const expectedData = [{ name: "apollo11" }, { name: "challenger" }];
-      const dataSource = Observable.of(expectedData);
+      const dataSource = of(expectedData);
       const expected = m.cold("(a|)", {
         a: { data: { launched: [expectedData[0]] } }
       });
 
-      const nameFilter = Observable.of("apollo11");
+      const nameFilter = of("apollo11");
       const result = graphqlObservable(query, schema, {
         query: dataSource,
         nameFilter
       });
 
-      m.expect(result.take(1)).toBeObservable(expected);
+      m.expect(result.pipe(take(1))).toBeObservable(expected);
     });
 
     itMarbles("filters by static argument", function(m) {
@@ -238,7 +236,7 @@ describe("graphqlObservable", function() {
       `;
 
       const expectedData = [{ name: "apollo13" }, { name: "challenger" }];
-      const dataSource = Observable.of(expectedData);
+      const dataSource = of(expectedData);
       const expected = m.cold("(a|)", {
         a: { data: { launched: [expectedData[0]] } }
       });
@@ -247,7 +245,7 @@ describe("graphqlObservable", function() {
         query: dataSource
       });
 
-      m.expect(result.take(1)).toBeObservable(expected);
+      m.expect(result.pipe(take(1))).toBeObservable(expected);
     });
 
     itMarbles("filters out fields", function(m) {
@@ -260,7 +258,7 @@ describe("graphqlObservable", function() {
       `;
 
       const expectedData = [{ name: "discovery", firstFlight: 1984 }];
-      const dataSource = Observable.of(expectedData);
+      const dataSource = of(expectedData);
       const expected = m.cold("(a|)", {
         a: { data: { launched: [{ name: "discovery" }] } }
       });
@@ -269,7 +267,7 @@ describe("graphqlObservable", function() {
         query: dataSource
       });
 
-      m.expect(result.take(1)).toBeObservable(expected);
+      m.expect(result.pipe(take(1))).toBeObservable(expected);
     });
 
     itMarbles("resolve with name alias", function(m) {
@@ -282,7 +280,7 @@ describe("graphqlObservable", function() {
       `;
 
       const expectedData = [{ name: "challenger", firstFlight: 1984 }];
-      const dataSource = Observable.of(expectedData);
+      const dataSource = of(expectedData);
       const expected = m.cold("(a|)", {
         a: { data: { launched: [{ title: "challenger" }] } }
       });
@@ -291,7 +289,7 @@ describe("graphqlObservable", function() {
         query: dataSource
       });
 
-      m.expect(result.take(1)).toBeObservable(expected);
+      m.expect(result.pipe(take(1))).toBeObservable(expected);
     });
 
     describe("Field Resolvers", function() {
@@ -308,7 +306,7 @@ describe("graphqlObservable", function() {
             a: { data: { plain: { noFieldResolver: "Yes" } } }
           });
           const result = graphqlObservable(query, fieldResolverSchema, {});
-          m.expect(result.take(1)).toBeObservable(expected);
+          m.expect(result.pipe(take(1))).toBeObservable(expected);
         });
 
         itMarbles("if defined it executes the field resolver", function(m) {
@@ -323,7 +321,7 @@ describe("graphqlObservable", function() {
             a: { data: { plain: { fieldResolver: "I am a field resolver" } } }
           });
           const result = graphqlObservable(query, fieldResolverSchema, {});
-          m.expect(result.take(1)).toBeObservable(expected);
+          m.expect(result.pipe(take(1))).toBeObservable(expected);
         });
 
         itMarbles("the field resolvers 1st argument is parent", function(m) {
@@ -346,7 +344,7 @@ describe("graphqlObservable", function() {
             }
           });
           const result = graphqlObservable(query, fieldResolverSchema, {});
-          m.expect(result.take(1)).toBeObservable(expected);
+          m.expect(result.pipe(take(1))).toBeObservable(expected);
         });
 
         itMarbles("the field resolvers 2nd argument is arguments", function(m) {
@@ -369,7 +367,7 @@ describe("graphqlObservable", function() {
             }
           });
           const result = graphqlObservable(query, fieldResolverSchema, {});
-          m.expect(result.take(1)).toBeObservable(expected);
+          m.expect(result.pipe(take(1))).toBeObservable(expected);
         });
 
         itMarbles("the field resolvers 3rd argument is context", function(m) {
@@ -390,7 +388,7 @@ describe("graphqlObservable", function() {
             }
           });
           const result = graphqlObservable(query, fieldResolverSchema, {});
-          m.expect(result.take(1)).toBeObservable(expected);
+          m.expect(result.pipe(take(1))).toBeObservable(expected);
         });
       });
 
@@ -415,7 +413,7 @@ describe("graphqlObservable", function() {
             }
           });
           const result = graphqlObservable(query, fieldResolverSchema, {});
-          m.expect(result.take(1)).toBeObservable(expected);
+          m.expect(result.pipe(take(1))).toBeObservable(expected);
         });
 
         itMarbles("the field resolvers 1st argument is parent", function(m) {
@@ -442,7 +440,7 @@ describe("graphqlObservable", function() {
             }
           });
           const result = graphqlObservable(query, fieldResolverSchema, {});
-          m.expect(result.take(1)).toBeObservable(expected);
+          m.expect(result.pipe(take(1))).toBeObservable(expected);
         });
 
         itMarbles("the field resolvers 2nd argument is arguments", function(m) {
@@ -469,7 +467,7 @@ describe("graphqlObservable", function() {
             }
           });
           const result = graphqlObservable(query, fieldResolverSchema, {});
-          m.expect(result.take(1)).toBeObservable(expected);
+          m.expect(result.pipe(take(1))).toBeObservable(expected);
         });
 
         itMarbles("the field resolvers 3rd argument is context", function(m) {
@@ -492,7 +490,7 @@ describe("graphqlObservable", function() {
             }
           });
           const result = graphqlObservable(query, fieldResolverSchema, {});
-          m.expect(result.take(1)).toBeObservable(expected);
+          m.expect(result.pipe(take(1))).toBeObservable(expected);
         });
       });
 
@@ -522,7 +520,7 @@ describe("graphqlObservable", function() {
           }
         });
         const result = graphqlObservable(query, fieldResolverSchema, {});
-        m.expect(result.take(1)).toBeObservable(expected);
+        m.expect(result.pipe(take(1))).toBeObservable(expected);
       });
     });
   });
@@ -538,7 +536,7 @@ describe("graphqlObservable", function() {
       `;
 
       const fakeRequest = { name: "RocketShip" };
-      const commandContext = Observable.of(fakeRequest);
+      const commandContext = of(fakeRequest);
 
       const result = graphqlObservable(mutation, schema, {
         mutation: commandContext
@@ -562,7 +560,7 @@ describe("graphqlObservable", function() {
           }
         `;
 
-        const commandContext = Observable.of("a request");
+        const commandContext = of("a request");
 
         const result = graphqlObservable(mutation, schema, {
           mutation: commandContext
@@ -593,7 +591,7 @@ describe("graphqlObservable", function() {
         }
       `;
 
-      const commandContext = Observable.of("a resquest");
+      const commandContext = of("a resquest");
 
       const result = graphqlObservable(mutation, schema, {
         mutation: commandContext,

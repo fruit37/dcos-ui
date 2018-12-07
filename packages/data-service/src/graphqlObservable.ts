@@ -1,11 +1,5 @@
-import { Observable } from "rxjs/Observable";
-import "rxjs/add/observable/throw";
-import "rxjs/add/observable/of";
-import "rxjs/add/observable/fromPromise";
-import "rxjs/add/operator/combineLatest";
-import "rxjs/add/operator/do";
-import "rxjs/add/operator/map";
-import "rxjs/add/operator/concatMap";
+import { throwError, of, from, Observable } from "rxjs";
+import { combineLatest, concatMap, map } from "rxjs/operators";
 
 import {
   DefinitionNode,
@@ -77,9 +71,11 @@ export function graphqlObservable<T = object>(
   }
   const types = schema._typeMap;
 
-  return resolve(doc.definitions[0], context, null, null).map((data: T) => ({
-    data
-  }));
+  return resolve(doc.definitions[0], context, null, null).pipe(
+    map((data: T) => ({
+      data
+    }))
+  );
 
   function resolve(
     definition: SchemaNode,
@@ -116,18 +112,20 @@ export function graphqlObservable<T = object>(
         return resolvedObservable;
       }
 
-      return resolvedObservable.concatMap(emitted => {
-        if (!emitted) {
-          return throwObservable("resolver emitted empty value");
-        }
+      return resolvedObservable.pipe(
+        concatMap(emitted => {
+          if (!emitted) {
+            return throwObservable("resolver emitted empty value");
+          }
 
-        if (emitted instanceof Array) {
-          return resolveArrayResults(definition, context, emitted, type);
-        }
+          if (emitted instanceof Array) {
+            return resolveArrayResults(definition, context, emitted, type);
+          }
 
-        const nextType = getResultType(type, definition, emitted);
-        return resolveResult(definition, context, emitted, nextType);
-      });
+          const nextType = getResultType(type, definition, emitted);
+          return resolveResult(definition, context, emitted, nextType);
+        })
+      );
     }
 
     // It is no operationDefinitionand no fieldNode, so it seems like an error
@@ -152,7 +150,7 @@ export function graphqlObservable<T = object>(
     }
 
     if (!definition.selectionSet) {
-      return Observable.of(parent);
+      return of(parent);
     }
 
     return definition.selectionSet.selections.reduce((acc, sel) => {
@@ -166,8 +164,8 @@ export function graphqlObservable<T = object>(
       const result = resolve(sel, context, parent, type);
       const fieldName = (sel.alias || sel.name).value;
 
-      return acc.combineLatest(result, objectAppendWithKey(fieldName));
-    }, Observable.of({}));
+      return acc.pipe(combineLatest(result, objectAppendWithKey(fieldName)));
+    }, of({}));
   }
 
   function resolveArrayResults(
@@ -185,8 +183,8 @@ export function graphqlObservable<T = object>(
         nextType
       );
 
-      return acc.combineLatest(resultObserver, listAppend);
-    }, Observable.of([]));
+      return acc.pipe(combineLatest(resultObserver, listAppend));
+    }, of([]));
   }
 
   function getField(
@@ -250,7 +248,7 @@ function throwObservable(error: string): Observable<any> {
   const graphqlErrorMessage = `graphqlObservable error: ${error}`;
   const graphqlError = new Error(graphqlErrorMessage);
 
-  return Observable.throw(graphqlError);
+  return throwError(graphqlError);
 }
 
 function buildResolveArgs(definition: FieldNode, context: object) {
@@ -284,7 +282,7 @@ function resolveField(
   parent: any
 ): Observable<any> {
   if (!isFieldWithResolver(field)) {
-    return Observable.of(parent[field.name]);
+    return of(parent[field.name]);
   }
 
   const args = buildResolveArgs(definition, context);
@@ -301,9 +299,9 @@ function resolveField(
   }
 
   if (resolvedValue instanceof Promise) {
-    return Observable.fromPromise(resolvedValue);
+    return from(resolvedValue);
   }
 
   // It seems like a plain value
-  return Observable.of(resolvedValue);
+  return of(resolvedValue);
 }
